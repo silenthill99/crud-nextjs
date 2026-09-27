@@ -4,10 +4,10 @@ import Form from "next/form";
 import {Label} from "@/components/ui/label";
 import {Input} from "@/components/ui/input";
 import {Button} from "@/components/ui/button";
-import {authClient} from "@/app/lib/auth-client";
 import {redirect} from "next/navigation";
 import * as z from "zod";
 import {prisma} from "@/app/lib/prisma";
+import {auth} from "@/app/lib/auth";
 
 export const metadata: Metadata = {
     title: "Créer un compte"
@@ -19,7 +19,7 @@ const RegisterSchema = z.object({
     password: z.string().min(8, "8 caractères minimum"),
     password_confirmation: z.string(),
 })
-    .refine(d => d.password === d.password_confirmation, {error: "Les mots de passe doivent être identiques", path: ['password_confirmation']})
+    .refine(d => d.password === d.password_confirmation, {error: "Les mots de passe doivent être identiques", path: ['password']})
     .transform(({password_confirmation, ...d}) => d);
 
 function back(errors: object): never {
@@ -38,14 +38,13 @@ async function register(formData: FormData) {
 
     if (await prisma.user.findUnique({where: {email: data.email}})) back({email: ["Adresse mail déjà utilisée"]})
 
-    await authClient.signUp.email(data, {
-        onSuccess: async () => {
-            redirect('/')
-        },
-        onError: async ({error}) => {
-            back({email: [error.message ?? "Inscription impossible"]})
-        }
-    })
+    try {
+        await auth.api.signUpEmail({body: data})
+    } catch (error: unknown) {
+        back({email: [error instanceof Error ? error.message : "Inscription impossible"]})
+    }
+
+    redirect('/')
 }
 
 const Err = ({m}: { m?: string[] }) => <p className={'text-sm text-destructive'}>{m?.[0]}</p>
